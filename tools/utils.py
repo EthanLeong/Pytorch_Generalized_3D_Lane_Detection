@@ -55,7 +55,7 @@ def define_args():
     # General model settings
     parser.add_argument('--batch_size', type=int, default=8, help='batch size')
     parser.add_argument('--nepochs', type=int, default=30, help='total numbers of epochs')
-    parser.add_argument('--learning_rate', type=float, default=5*1e-4, help='learning rate')
+    parser.add_argument('--learning_rate', type=float, default=2*1e-4, help='learning rate')
     parser.add_argument('--no_cuda', action='store_true', help='if gpu available')
     parser.add_argument('--nworkers', type=int, default=0, help='num of threads')
     parser.add_argument('--no_dropout', action='store_true', help='no dropout in network')
@@ -71,7 +71,7 @@ def define_args():
     # Optimizer settings
     parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
     parser.add_argument('--weight_init', type=str, default='normal', help='normal, xavier, kaiming, orhtogonal weights initialisation')
-    parser.add_argument('--weight_decay', type=float, default=0, help='L2 weight decay/regularisation on?')
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='L2 weight decay/regularisation on?')
     parser.add_argument('--lr_decay', action='store_true', help='decay learning rate with rule')
     parser.add_argument('--niter', type=int, default=50, help='# of iter at starting learning rate')
     parser.add_argument('--niter_decay', type=int, default=400, help='# of iter to linearly decay learning rate to zero')
@@ -134,6 +134,8 @@ def sim3d_config(args):
     args.org_w = 1920
     args.crop_y = 0
     args.no_centerline = False
+    # args.no_centerline = True
+    
     args.no_3d = False
     args.fix_cam = False
     args.pred_cam = False
@@ -159,8 +161,136 @@ def sim3d_config(args):
     args.pretrained = False
     # apply batch norm in network
     args.batch_norm = True
+    args.y_ref = 5  # new anchor prefer closer range gt assign
+    args.max_lanes = 6
+    
+    
+def openlane_config(args):
+
+    # set dataset parameters
+    args.org_h = 1280
+    args.org_w = 1920
+    args.crop_y = 0
+    args.no_centerline = True
+    args.no_3d = False
+    args.fix_cam = False
+    args.pred_cam = False
+    args.dataset_name = "openlane"
+
+    args.weight_decay = 0
+    
+    # set camera parameters for the test datasets
+    args.K = np.array([[2015., 0., 960.],
+                       [0., 2015., 540.],
+                       [0., 0., 1.]])
+
+    # specify model settings
+    """
+    paper presented params:
+        args.top_view_region = np.array([[-10, 85], [10, 85], [-10, 5], [10, 5]])
+        args.anchor_y_steps = np.array([5, 20, 40, 60, 80, 100])
+    """
+    # args.top_view_region = np.array([[-10, 83], [10, 83], [-10, 3], [10, 3]])
+    # args.anchor_y_steps = np.array([3, 5, 10, 20, 40, 60, 80, 100])
+    args.top_view_region = np.array([[-10, 103], [10, 103], [-10, 3], [10, 3]])
+    args.anchor_y_steps = np.array([5, 10, 15, 20, 30, 40, 50, 60, 80, 100])
+    args.num_y_steps = len(args.anchor_y_steps)
+
+    # initialize with pre-trained vgg weights
+    args.pretrained = False
+    # apply batch norm in network
+    args.batch_norm = True
+    args.y_ref = 5  # new anchor prefer closer range gt assign
+    args.max_lanes = 20
 
 
+    # # scheduler
+    args.lr_policy = "cosine"
+    args.T_max = 8
+    args.eta_min = 1e-5
+    
+
+def once_config(args):
+
+    # set dataset parameters
+    args.org_h = 1020
+    args.org_w = 1920
+    args.crop_y = 0
+    args.no_centerline = True
+    args.no_3d = False
+    args.fix_cam = False
+    args.pred_cam = False
+
+    # set camera parameters for the test datasets
+    args.K = np.array([[2015., 0., 960.],
+                       [0., 2015., 540.],
+                       [0., 0., 1.]])
+
+    # specify model settings
+    """
+    paper presented params:
+        args.top_view_region = np.array([[-10, 85], [10, 85], [-10, 5], [10, 5]])
+        args.anchor_y_steps = np.array([5, 20, 40, 60, 80, 100])
+    """
+    # args.top_view_region = np.array([[-10, 53], [10, 53], [-10, 3], [10, 3]])
+    args.top_view_region = np.array([[-10, 103], [10, 103], [-10, 3], [10, 3]])
+    
+    # args.anchor_y_steps = np.array([3, 5, 10, 20, 40, 60, 80, 100])
+    # args.top_view_region = np.array([[-10, 103], [10, 103], [-10, 3], [10, 3]])
+    # args.anchor_y_steps = np.array([5, 10, 15, 20, 30, 40, 50, 60, 80, 100])
+    # args.anchor_y_steps = np.array([5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
+    args.anchor_y_steps = np.array([5, 10, 15, 20, 30, 40, 50, 60, 80, 100])
+    
+    
+    args.num_y_steps = len(args.anchor_y_steps)
+
+    # initialize with pre-trained vgg weights
+    args.pretrained = False
+    # apply batch norm in network
+    args.batch_norm = True
+    args.y_ref = 5  # new anchor prefer closer range gt assign
+    args.max_lanes = 8
+
+    
+    
+    
+def synthetic_config(args):
+
+    # set dataset parameters
+    args.org_h = 1080
+    args.org_w = 1920
+    args.crop_y = 0
+    args.no_centerline = True
+    args.no_3d = False
+    args.fix_cam = False
+    args.pred_cam = False
+
+    # set camera parameters for the test datasets
+    args.K = np.array([[2015., 0., 960.],
+                       [0., 2015., 540.],
+                       [0., 0., 1.]])
+
+    # specify model settings
+    """
+    paper presented params:
+        args.top_view_region = np.array([[-10, 85], [10, 85], [-10, 5], [10, 5]])
+        args.anchor_y_steps = np.array([5, 20, 40, 60, 80, 100])
+    """
+    # args.top_view_region = np.array([[-10, 83], [10, 83], [-10, 3], [10, 3]])
+    # args.anchor_y_steps = np.array([3, 5, 10, 20, 40, 60, 80, 100])
+    args.top_view_region = np.array([[-10, 103], [10, 103], [-10, 3], [10, 3]])
+    args.anchor_y_steps = np.array([5, 10, 15, 20, 30, 40, 50, 60, 80, 100])
+    args.num_y_steps = len(args.anchor_y_steps)
+
+    # initialize with pre-trained vgg weights
+    args.pretrained = False
+    # apply batch norm in network
+    args.batch_norm = True
+    args.y_ref = 5  # new anchor prefer closer range gt assign
+    args.max_lanes = 2
+    
+    
+    
 class Visualizer:
     def __init__(self, args, vis_folder='val_vis'):
         self.save_path = args.save_path
@@ -771,12 +901,13 @@ def prune_3d_lane_by_visibility(lane_3d, visibility):
 
 
 def prune_3d_lane_by_range(lane_3d, x_min, x_max):
+    
     # TODO: solve hard coded range later
     # remove points with y out of range
     # 3D label may miss super long straight-line with only two points: Not have to be 200, gt need a min-step
     # 2D dataset requires this to rule out those points projected to ground, but out of meaningful range
     lane_3d = lane_3d[np.logical_and(lane_3d[:, 1] > 0, lane_3d[:, 1] < 200), ...]
-
+    
     # remove lane points out of x range
     lane_3d = lane_3d[np.logical_and(lane_3d[:, 0] > x_min,
                                      lane_3d[:, 0] < x_max), ...]
@@ -802,6 +933,7 @@ def resample_laneline_in_y(input_lane, y_steps, out_vis=False):
     if input_lane.shape[1] < 3:
         input_lane = np.concatenate([input_lane, np.zeros([input_lane.shape[0], 1], dtype=np.float32)], axis=1)
 
+        
     f_x = interp1d(input_lane[:, 1], input_lane[:, 0], fill_value="extrapolate")
     f_z = interp1d(input_lane[:, 1], input_lane[:, 2], fill_value="extrapolate")
 
@@ -814,7 +946,7 @@ def resample_laneline_in_y(input_lane, y_steps, out_vis=False):
     return x_values, z_values
 
 
-def resample_laneline_in_y_with_vis(input_lane, y_steps, vis_vec):
+def resample_laneline_in_y_with_vis(input_lane, y_steps, vis_vec, thresh = 0.5):
     """
         Interpolate x, z values at each anchor grid, including those beyond the range of input lnae y range
     :param input_lane: N x 2 or N x 3 ndarray, one row for a point (x, y, z-optional).
@@ -829,7 +961,9 @@ def resample_laneline_in_y_with_vis(input_lane, y_steps, vis_vec):
 
     if input_lane.shape[1] < 3:
         input_lane = np.concatenate([input_lane, np.zeros([input_lane.shape[0], 1], dtype=np.float32)], axis=1)
-
+    
+    
+    
     f_x = interp1d(input_lane[:, 1], input_lane[:, 0], fill_value="extrapolate")
     f_z = interp1d(input_lane[:, 1], input_lane[:, 2], fill_value="extrapolate")
     f_vis = interp1d(input_lane[:, 1], vis_vec, fill_value="extrapolate")
@@ -838,20 +972,19 @@ def resample_laneline_in_y_with_vis(input_lane, y_steps, vis_vec):
     z_values = f_z(y_steps)
     vis_values = f_vis(y_steps)
 
-    x_values = x_values[vis_values > 0.5]
-    y_values = y_steps[vis_values > 0.5]
-    z_values = z_values[vis_values > 0.5]
+
+    x_values = x_values[vis_values > thresh]
+    y_values = y_steps[vis_values > thresh]
+    z_values = z_values[vis_values > thresh]
     return np.array([x_values, y_values, z_values]).T
 
-
-def homography_im2ipm_norm(top_view_region, org_img_size, crop_y, resize_img_size, cam_pitch, cam_height, K):
+def homography_im2ipm_norm(top_view_region, org_img_size, crop_y, resize_img_size, cam_pitch, cam_height, K, E=None):
     """
         Compute the normalized transformation such that image region are mapped to top_view region maps to
         the top view image's 4 corners
         Ground coordinates: x-right, y-forward, z-up
         The purpose of applying normalized transformation: 1. invariance in scale change
                                                            2.Torch grid sample is based on normalized grids
-
     :param top_view_region: a 4 X 2 list of (X, Y) indicating the top-view region corners in order:
                             top-left, top-right, bottom-left, bottom-right
     :param org_img_size: the size of original image size: [h, w]
@@ -863,8 +996,11 @@ def homography_im2ipm_norm(top_view_region, org_img_size, crop_y, resize_img_siz
     :return: H_im2ipm_norm: the normalized transformation from image to IPM image
     """
 
-    # compute homography transformation from ground to image (only this depends on cam_pitch and cam height)
-    H_g2im = homograpthy_g2im(cam_pitch, cam_height, K)
+    if isinstance(E, np.ndarray):
+        H_g2im = homograpthy_g2im_extrinsic(E, K)
+    else:
+        # compute homography transformation from ground to image (only this depends on cam_pitch and cam height)
+        H_g2im = homograpthy_g2im(cam_pitch, cam_height, K)
     # transform original image region to network input region
     H_c = homography_crop_resize(org_img_size, crop_y, resize_img_size)
     H_g2im = np.matmul(H_c, H_g2im)
@@ -883,6 +1019,7 @@ def homography_im2ipm_norm(top_view_region, org_img_size, crop_y, resize_img_siz
     # ipm to im
     H_ipm2im_norm = cv2.getPerspectiveTransform(dst, border_im)
     return H_im2ipm_norm, H_ipm2im_norm
+
 
 
 def homography_ipmnorm2g(top_view_region):
@@ -906,6 +1043,22 @@ def projection_g2im(cam_pitch, cam_height, K):
                       [0, np.sin(np.pi / 2 + cam_pitch),  np.cos(np.pi / 2 + cam_pitch),          0]])
     P_g2im = np.matmul(K, P_g2c)
     return P_g2im
+
+
+
+def homograpthy_g2im_extrinsic(E, K):
+    """E: extrinsic matrix, 4*4"""
+    E_inv = np.linalg.inv(E)[0:3, :]
+    H_g2c = E_inv[:, [0,1,3]]
+    H_g2im = np.matmul(K, H_g2c)
+    return H_g2im
+
+
+def projection_g2im_extrinsic(E, K):
+    E_inv = np.linalg.inv(E)[0:3, :]
+    P_g2im = np.matmul(K, E_inv)
+    return P_g2im
+
 
 
 def homography_crop_resize(org_img_size, crop_y, resize_img_size):
@@ -973,7 +1126,10 @@ def transform_lane_gflat2g(h_cam, X_gflat, Y_gflat, Z_g):
     :param Z_g: Z coordinates in real 3D ground space
     :return:
     """
+    
 
+
+    
     X_g = X_gflat - X_gflat * Z_g / h_cam
     Y_g = Y_gflat - Y_gflat * Z_g / h_cam
 
@@ -992,9 +1148,13 @@ def transform_lane_g2gflat(h_cam, X_g, Y_g, Z_g):
     :return:
     """
 
+ 
+  
     X_gflat = X_g * h_cam / (h_cam - Z_g)
     Y_gflat = Y_g * h_cam / (h_cam - Z_g)
 
+
+    
     return X_gflat, Y_gflat
 
 
@@ -1015,6 +1175,64 @@ def nms_1d(v):
             v_out[i] = 0.
     return v_out
 
+
+
+
+def nms_bev(batch_output_net, args):
+    """apply nms to filter predictions of same GT from different anchors"""
+
+    anchor_dim = 3*args.num_y_steps + 1
+    anchor_x_steps = args.anchor_grid_x \
+        if not args.use_default_anchor \
+        else np.linspace(args.top_view_region[0, 0], args.top_view_region[1, 0], np.int(args.ipm_w/8))
+
+    batch_output_net = batch_output_net.reshape(batch_output_net.shape[0], batch_output_net.shape[1], anchor_dim)
+    # print("cate before softmax: ", batch_output_net[:, :, anchor_dim-args.num_category:].shape)
+    # print(batch_output_net[0, :16, :])
+    batch_output_net[:, :, anchor_dim-args.num_category:] = \
+        softmax(batch_output_net[:, :, anchor_dim-args.num_category:], axis=2)
+    # print("cate after softmax: ", batch_output_net[:, :, anchor_dim-args.num_category:].shape)
+    # print(batch_output_net[0, :16, :])
+    for i, output_net in enumerate(batch_output_net):
+        # pack prediction data to nms library format
+        scores = torch.zeros(len(output_net)).cuda()
+        output_net_nms = torch.zeros(len(output_net), 2 + 3 + args.S).cuda()
+        pre_nms_valid_anchor_id = []
+        valid_count = 0
+        for j, output_anchor in enumerate(output_net):
+            # print("max cate id: ", np.argmax(output_anchor[anchor_dim-args.num_category:]))
+            visible_yid = np.where(output_anchor[2*args.num_y_steps: 3*args.num_y_steps] > args.prob_th)[0]
+            # print("vis points: ", len(visible_yid))
+            if np.argmax(output_anchor[anchor_dim-args.num_category:]) == \
+                anchor_dim-args.num_category or len(visible_yid) < 2:
+                # print("skip")
+                continue
+            pre_nms_valid_anchor_id.append(j)
+            
+            scores[valid_count] = np.max(output_anchor[anchor_dim-args.num_category+1:]).item()
+            yid_start = visible_yid[0]
+            # approximation here, since there can be invisible points in between
+            yid_num = visible_yid[-1] - visible_yid[0] + 1
+            output_net_nms[valid_count, 2] = (yid_start / (args.S-1)).item()
+            output_net_nms[valid_count, 4] = yid_num.item()
+            output_net_nms[valid_count, 5 : 5+args.num_y_steps] = \
+                torch.from_numpy(output_anchor[:args.num_y_steps] + anchor_x_steps[j])
+            
+            valid_count = valid_count + 1
+        scores = scores[:valid_count]
+        output_net_nms = output_net_nms[:valid_count]
+        # print("scores: ", scores)
+        # print(output_net_nms[:, :16])
+        keep, num_to_keep, _ = nms(output_net_nms, scores, overlap=args.nms_thres_3d, top_k=args.max_lanes)
+        # print("keep before reduction: ", keep)
+        keep = keep[:num_to_keep].tolist()
+        # print("keep after reduction: ", keep)
+        for jj, anchor_id in enumerate(pre_nms_valid_anchor_id):
+            if jj not in keep:
+                # update category as invalid, so that it can be filted in compute_3d_lanes()
+                batch_output_net[i][anchor_id][anchor_dim-args.num_category] = 1.0
+
+    return batch_output_net
 
 def first_run(save_path):
     txt_file = os.path.join(save_path,'first_run.txt')
@@ -1130,6 +1348,11 @@ def define_scheduler(optimizer, args):
                                                    factor=args.gamma,
                                                    threshold=0.0001,
                                                    patience=args.lr_decay_iters)
+        
+    elif args.lr_policy == 'cosine':
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer,
+                                                   T_max=args.T_max, eta_min=args.eta_min)
+        
     elif args.lr_policy == 'none':
         scheduler = None
     else:
@@ -1213,3 +1436,69 @@ def weights_init_orthogonal(m):
     elif classname.find('BatchNorm2d') != -1:
         init.normal_(m.weight.data, 1.0, 0.02)
         init.constant_(m.bias.data, 0.0)
+
+        
+def unit_update_projection_extrinsic(args, extrinsics, intrinsics):
+    """
+        Unit function to Update transformation matrix based on ground-truth extrinsics
+        This function is "Mutually Exclusive" to the updates of M_inv from network prediction
+    """
+    batch_size = extrinsics.shape[0]
+    M_inv = torch.zeros(batch_size, 3, 3)
+    for i in range(batch_size):
+        _M, _M_inv = homography_im2ipm_norm(args.top_view_region, np.array([args.org_h, args.org_w]),
+                                            args.crop_y, np.array([args.resize_h, args.resize_w]),
+                                            None, None, intrinsics[i].data.cpu().numpy(), extrinsics[i].data.cpu().numpy())
+        M_inv[i] = torch.from_numpy(_M_inv).type(torch.FloatTensor)
+    if not args.no_cuda:
+        M_inv = M_inv.cuda()
+    return M_inv
+
+def unit_update_projection(args, cam_height, cam_pitch, intrinsics=None, extrinsics=None):
+    """
+        Unit function to Update transformation matrix based on ground-truth cam_height and cam_pitch
+        This function is "Mutually Exclusive" to the updates of M_inv from network prediction
+    :param args:
+    :param cam_height:
+    :param cam_pitch:
+    :return:
+    """
+    M_inv = torch.zeros(args.batch_size, 3, 3)
+    for i in range(args.batch_size):
+        _M, _M_inv = homography_im2ipm_norm(args.top_view_region, np.array([args.org_h, args.org_w]),
+                                            args.crop_y, np.array([args.resize_h, args.resize_w]),
+                                            cam_pitch[i].data.cpu().numpy(), cam_height[i].data.cpu().numpy(), args.K)
+        M_inv[i] = torch.from_numpy(_M_inv).type(torch.FloatTensor)
+    if not args.no_cuda:
+        M_inv = M_inv.cuda()
+    cam_height = cam_height
+    cam_pitch = cam_pitch
+    return M_inv, cam_height, cam_pitch
+
+def unit_update_projection_for_data_aug(args, aug_mats, _M_inv, _S_im_inv=None, _S_im=None):
+    """
+        Unit function to update transformation matrix when data augmentation have been applied, and the image augmentation matrix are provided
+        Need to consider both the cases of 1. when using ground-truth cam_height, cam_pitch, update M_inv
+                                            2. when cam_height, cam_pitch are online estimated, update H_c for later use
+    """
+    if not args.no_cuda:
+        aug_mats = aug_mats.cuda()
+
+    if _S_im_inv is None:
+        _S_im_inv = torch.from_numpy(np.array([[1/np.float(args.resize_w),                         0, 0],
+                                                    [                        0, 1/np.float(args.resize_h), 0],
+                                                    [                        0,                         0, 1]], dtype=np.float32)).cuda()
+    
+    if _S_im is None:
+        _S_im = torch.from_numpy(np.array([[args.resize_w,              0, 0],
+                                                [            0,  args.resize_h, 0],
+                                                [            0,              0, 1]], dtype=np.float32)).cuda()
+
+    for i in range(aug_mats.shape[0]):
+        # update H_c directly
+        # self.H_c[i] = torch.matmul(aug_mats[i], self.H_c[i])
+        # augmentation need to be applied in unnormalized image coords for M_inv
+        aug_mats[i] = torch.matmul(torch.matmul(_S_im_inv, aug_mats[i]), _S_im)
+        _M_inv[i] = torch.matmul(aug_mats[i], _M_inv[i])
+
+    return _M_inv

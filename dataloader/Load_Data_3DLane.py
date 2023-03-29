@@ -15,6 +15,7 @@ import json
 import random
 import warnings
 import torchvision.transforms.functional as F
+import torchvision.transforms as T
 from tools.utils import *
 warnings.simplefilter('ignore', np.RankWarning)
 matplotlib.use('Agg')
@@ -160,7 +161,7 @@ class LaneDataset(Dataset):
 
         # image preprocess with crop and resize
         image = F.crop(image, self.h_crop, 0, self.h_org-self.h_crop, self.w_org)
-        image = F.resize(image, size=(self.h_net, self.w_net), interpolation=Image.BILINEAR)
+        image = F.resize(image, size=(self.h_net, self.w_net), interpolation=T.InterpolationMode.BILINEAR)
 
         gt_anchor = np.zeros([np.int32(self.ipm_w / 8), self.num_types, self.anchor_dim], dtype=np.float32)
 
