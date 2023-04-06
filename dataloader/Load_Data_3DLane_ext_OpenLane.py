@@ -10,12 +10,14 @@ Date: March, 2020
 import copy
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
+import torchvision.transforms as T
 from PIL import Image, ImageOps
 from pathlib import Path
 import json
 import random
 import warnings
 import torchvision.transforms.functional as F
+import numpy as np
 from tools.utils import *
 warnings.simplefilter('ignore', np.RankWarning)
 matplotlib.use('Agg')
@@ -38,8 +40,10 @@ class LaneDataset(Dataset):
         """
         # define image pre-processor
         self.totensor = transforms.ToTensor()
-        self.normalize = transforms.Normalize(args.vgg_mean, args.vgg_std)
+        self.Vgg_normalize = transforms.Normalize(args.vgg_mean, args.vgg_std)
         self.data_aug = data_aug
+
+        self.mode = args.mode
 
         # dataset parameters
         self.dataset_name = args.dataset_name
@@ -131,6 +135,20 @@ class LaneDataset(Dataset):
                 jsonFile.write('\n')
         # # normalize label values: manual execute in main function, in case overwriting stds is needed
         # self.normalize_lane_label()
+
+    def normalize(self, sample):
+        m=[103.939, 116.779, 123.68],
+        s=[1., 1., 1.]
+        img = sample
+        if len(m) == 1:
+            img = img - np.array(m)  # single channel image
+            img = img / np.array(s)
+        else:
+            img = img - np.array(m)[np.newaxis, np.newaxis, ...]
+            img = img / np.array(s)[np.newaxis, np.newaxis, ...]
+        sample = img
+
+        return sample
 
     def __len__(self):
         """
@@ -246,7 +264,7 @@ class LaneDataset(Dataset):
 
         # image preprocess with crop and resize
         image = F.crop(image, self.h_crop, 0, self.h_org-self.h_crop, self.w_org)
-        image = F.resize(image, size=(self.h_net, self.w_net), interpolation=Image.BILINEAR)
+        image = F.resize(image, size=(self.h_net, self.w_net), interpolation=T.InterpolationMode.BILINEAR)
         
         gt_anchor = np.zeros([np.int32(self.ipm_w / 8), self.num_types, self.anchor_dim], dtype=np.float32)
         gt_lanes = self._label_laneline_all[idx]
@@ -265,9 +283,13 @@ class LaneDataset(Dataset):
             img_rot, aug_mat = data_aug_rotate(image)
             image = Image.fromarray(img_rot)
             M = np.matmul(aug_mat, M)
-            
-        image = self.totensor(image).float()
-        image = self.normalize(image)
+        
+        if self.mode == 'ERFNet':
+            image = self.totensor(image).float()
+            image = self.Vgg_normalize(image)
+        elif self.mode == 'lanedet':
+            image = self.normalize(image)
+            image = self.totensor(image).float()
   
         
         for i in range(len(gt_lanes)):
@@ -303,7 +325,7 @@ class LaneDataset(Dataset):
                 
                     seg_label = cv2.line(seg_label,
                                          (int(x_2d[j]), int(y_2d[j])), (int(x_2d[j+1]), int(y_2d[j+1])),
-                                         color=np.asscalar(np.array([1])))
+                                         color=np.array([1]).item())
             
         
         gt_anchor = gt_anchor.reshape([np.int32(self.ipm_w / 8), -1])

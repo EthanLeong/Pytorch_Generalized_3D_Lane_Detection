@@ -14,6 +14,7 @@ from dataloader.Load_Data_3DLane_ext import *
 from networks import GeoNet3D_ext, erfnet
 from tools.utils import *
 from tools.visualize_pred import lane_visualizer
+import torchvision.transforms as T
 
 
 def unormalize_lane_anchor(anchor, num_y_steps, anchor_dim, x_off_std, z_std, num_types=3):
@@ -61,7 +62,7 @@ if __name__ == '__main__':
     anchor_dim = 3 * num_y_steps + 1
     x_min = args.top_view_region[0, 0]
     x_max = args.top_view_region[1, 0]
-    anchor_x_steps = np.linspace(x_min, x_max, np.int(args.ipm_w / 8), endpoint=True)
+    anchor_x_steps = np.linspace(x_min, x_max, np.int32(args.ipm_w / 8), endpoint=True)
 
     # Check GPU availability
     if not args.no_cuda and not torch.cuda.is_available():
@@ -104,7 +105,7 @@ if __name__ == '__main__':
     # image preprocess
     w, h = image.size
     image = F.crop(image, args.crop_y, 0, args.org_h - args.crop_y, w)
-    image = F.resize(image, size=(args.resize_h, args.resize_w), interpolation=Image.BILINEAR)
+    image = F.resize(image, size=(args.resize_h, args.resize_w), interpolation=T.InterpolationMode.BILINEAR)
     image = transforms.ToTensor()(image).float()
     image = transforms.Normalize(args.vgg_mean, args.vgg_std)(image)
     image.unsqueeze_(0)
@@ -187,7 +188,7 @@ if __name__ == '__main__':
     ax6.tick_params(pad=18)
 
     fig.subplots_adjust(wspace=0, hspace=0.01)
-    fig.savefig('test.png')
+    fig.savefig('test2.png')
     plt.close(fig)
 
 

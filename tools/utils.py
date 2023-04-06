@@ -48,9 +48,9 @@ def define_args():
     parser.add_argument("--pred_cam", type=str2bool, nargs='?', const=True, default=False, help="use network to predict camera online?")
     parser.add_argument('--ipm_h', type=int, default=208, help='height of inverse projective map (IPM)')
     parser.add_argument('--ipm_w', type=int, default=128, help='width of inverse projective map (IPM)')
-    parser.add_argument('--resize_h', type=int, default=360, help='height of the original image')
-    parser.add_argument('--resize_w', type=int, default=480, help='width of the original image')
-    parser.add_argument('--y_ref', type=float, default=20.0, help='the reference Y distance in meters from where lane association is determined')
+    parser.add_argument('--resize_h', type=int, default=320, help='height of the resized image')
+    parser.add_argument('--resize_w', type=int, default=480, help='width of the resized image')
+    parser.add_argument('--y_ref', type=float, default=20.0, help='the reference Y distance in meters from where lane association == determined')
     parser.add_argument('--prob_th', type=float, default=0.5, help='probability threshold for selecting output lanes')
     # General model settings
     parser.add_argument('--batch_size', type=int, default=8, help='batch size')
@@ -87,6 +87,7 @@ def define_args():
     parser.add_argument('--save_freq', type=int, default=500, help='padding')
     # Skip batch
     parser.add_argument('--list', type=int, nargs='+', default=[954, 2789], help='Images you want to skip')
+    parser.add_argument('--mode', type=str, default='ERFNet', help='Pre-trained model for the 1st stage segmentation.')
 
     return parser
 
@@ -166,16 +167,23 @@ def sim3d_config(args):
     
     
 def openlane_config(args):
-
-    # set dataset parameters
+    
     args.org_h = 1280
     args.org_w = 1920
-    args.crop_y = 0
+    # set dataset parameters
     args.no_centerline = True
     args.no_3d = False
     args.fix_cam = False
     args.pred_cam = False
     args.dataset_name = "openlane"
+    args.mode = 'ERFNet'
+    if args.mode == 'ERFNet':
+        args.crop_y = 0
+    elif args.mode == 'lanedet':
+        args.resize_h = 400
+        args.resize_w = 600
+        args.crop_y = 500
+
 
     args.weight_decay = 0
     
@@ -339,10 +347,10 @@ class Visualizer:
 
         for j in range(lane_anchor.shape[0]):
             # draw laneline
-            if draw_type is 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, :self.num_y_steps]
                 x_3d = x_offsets + self.anchor_x_steps[j]
-                if P_g2im.shape[1] is 3:
+                if P_g2im.shape[1] == 3:
                     x_2d, y_2d = homographic_transformation(P_g2im, x_3d, self.anchor_y_steps)
                 else:
                     z_3d = lane_anchor[j, self.num_y_steps:self.anchor_dim - 1]
@@ -353,10 +361,10 @@ class Visualizer:
                     img = cv2.line(img, (x_2d[k - 1], y_2d[k - 1]), (x_2d[k], y_2d[k]), color, 2)
 
             # draw centerline
-            if draw_type is 'centerline' and lane_anchor[j, 2 * self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 2 * self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, self.anchor_dim:self.anchor_dim + self.num_y_steps]
                 x_3d = x_offsets + self.anchor_x_steps[j]
-                if P_g2im.shape[1] is 3:
+                if P_g2im.shape[1] == 3:
                     x_2d, y_2d = homographic_transformation(P_g2im, x_3d, self.anchor_y_steps)
                 else:
                     z_3d = lane_anchor[j, self.anchor_dim + self.num_y_steps:2 * self.anchor_dim - 1]
@@ -367,10 +375,10 @@ class Visualizer:
                     img = cv2.line(img, (x_2d[k - 1], y_2d[k - 1]), (x_2d[k], y_2d[k]), color, 2)
 
             # draw the additional centerline for the merging case
-            if draw_type is 'centerline' and lane_anchor[j, 3 * self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 3 * self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, 2 * self.anchor_dim:2 * self.anchor_dim + self.num_y_steps]
                 x_3d = x_offsets + self.anchor_x_steps[j]
-                if P_g2im.shape[1] is 3:
+                if P_g2im.shape[1] == 3:
                     x_2d, y_2d = homographic_transformation(P_g2im, x_3d, self.anchor_y_steps)
                 else:
                     z_3d = lane_anchor[j, 2 * self.anchor_dim + self.num_y_steps:3 * self.anchor_dim - 1]
@@ -392,10 +400,10 @@ class Visualizer:
         """
         for j in range(lane_anchor.shape[0]):
             # draw laneline
-            if draw_type is 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, :self.num_y_steps]
                 x_3d = x_offsets + self.anchor_x_steps[j]
-                if P_g2im.shape[1] is 3:
+                if P_g2im.shape[1] == 3:
                     x_2d, y_2d = homographic_transformation(P_g2im, x_3d, self.anchor_y_steps)
                     visibility = np.ones_like(x_2d)
                 else:
@@ -411,10 +419,10 @@ class Visualizer:
                         img = cv2.line(img, (x_2d[k - 1], y_2d[k - 1]), (x_2d[k], y_2d[k]), [0, 0, 0], 2)
 
             # draw centerline
-            if draw_type is 'centerline' and lane_anchor[j, 2 * self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 2 * self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, self.anchor_dim:self.anchor_dim + self.num_y_steps]
                 x_3d = x_offsets + self.anchor_x_steps[j]
-                if P_g2im.shape[1] is 3:
+                if P_g2im.shape[1] == 3:
                     x_2d, y_2d = homographic_transformation(P_g2im, x_3d, self.anchor_y_steps)
                     visibility = np.ones_like(x_2d)
                 else:
@@ -430,10 +438,10 @@ class Visualizer:
                         img = cv2.line(img, (x_2d[k - 1], y_2d[k - 1]), (x_2d[k], y_2d[k]), [0, 0, 0], 2)
 
             # draw the additional centerline for the merging case
-            if draw_type is 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, 2*self.anchor_dim:2*self.anchor_dim + self.num_y_steps]
                 x_3d = x_offsets + self.anchor_x_steps[j]
-                if P_g2im.shape[1] is 3:
+                if P_g2im.shape[1] == 3:
                     x_2d, y_2d = homographic_transformation(P_g2im, x_3d, self.anchor_y_steps)
                     visibility = np.ones_like(x_2d)
                 else:
@@ -453,7 +461,7 @@ class Visualizer:
     def draw_on_ipm(self, im_ipm, lane_anchor, draw_type='laneline', color=[0, 0, 1]):
         for j in range(lane_anchor.shape[0]):
             # draw laneline
-            if draw_type is 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, :self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
 
@@ -466,7 +474,7 @@ class Visualizer:
                                       (x_ipm[k], y_ipm[k]), color, 1)
 
             # draw centerline
-            if draw_type is 'centerline' and lane_anchor[j, 2 * self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 2 * self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, self.anchor_dim:self.anchor_dim + self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
 
@@ -479,7 +487,7 @@ class Visualizer:
                                       (x_ipm[k], y_ipm[k]), color, 1)
 
             # draw the additional centerline for the merging case
-            if draw_type is 'centerline' and lane_anchor[j, 3 * self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 3 * self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, 2 * self.anchor_dim:2 * self.anchor_dim + self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
 
@@ -495,7 +503,7 @@ class Visualizer:
     def draw_on_ipm_new(self, im_ipm, lane_anchor, draw_type='laneline', color=[0, 0, 1], width=1):
         for j in range(lane_anchor.shape[0]):
             # draw laneline
-            if draw_type is 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, :self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -516,7 +524,7 @@ class Visualizer:
                                           (x_ipm[k], y_ipm[k]), [0, 0, 0], width)
 
             # draw centerline
-            if draw_type is 'centerline' and lane_anchor[j, 2*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 2*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, self.anchor_dim:self.anchor_dim + self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -537,7 +545,7 @@ class Visualizer:
                                           (x_ipm[k], y_ipm[k]), [0, 0, 0], width)
 
             # draw the additional centerline for the merging case
-            if draw_type is 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, 2*self.anchor_dim:2*self.anchor_dim + self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -561,7 +569,7 @@ class Visualizer:
     def draw_3d_curves(self, ax, lane_anchor, draw_type='laneline', color=[0, 0, 1]):
         for j in range(lane_anchor.shape[0]):
             # draw laneline
-            if draw_type is 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, :self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -571,7 +579,7 @@ class Visualizer:
                 ax.plot(x_g, self.anchor_y_steps, z_g, color=color)
 
             # draw centerline
-            if draw_type is 'centerline' and lane_anchor[j, 2*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 2*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, self.anchor_dim:self.anchor_dim + self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -581,7 +589,7 @@ class Visualizer:
                 ax.plot(x_g, self.anchor_y_steps, z_g, color=color)
 
             # draw the additional centerline for the merging case
-            if draw_type is 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, 2*self.anchor_dim:2*self.anchor_dim + self.num_y_steps]
                 x_g = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -593,7 +601,7 @@ class Visualizer:
     def draw_3d_curves_new(self, ax, lane_anchor, h_cam, draw_type='laneline', color=[0, 0, 1]):
         for j in range(lane_anchor.shape[0]):
             # draw laneline
-            if draw_type is 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'laneline' and lane_anchor[j, self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, :self.num_y_steps]
                 x_gflat = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -613,7 +621,7 @@ class Visualizer:
                     ax.plot(x_g, y_g, z_g, color=color)
 
             # draw centerline
-            if draw_type is 'centerline' and lane_anchor[j, 2*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 2*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, self.anchor_dim:self.anchor_dim + self.num_y_steps]
                 x_gflat = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -633,7 +641,7 @@ class Visualizer:
                     ax.plot(x_g, y_g, z_g, color=color)
 
             # draw the additional centerline for the merging case
-            if draw_type is 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
+            if draw_type == 'centerline' and lane_anchor[j, 3*self.anchor_dim - 1] > self.prob_th:
                 x_offsets = lane_anchor[j, 2*self.anchor_dim:2*self.anchor_dim + self.num_y_steps]
                 x_gflat = x_offsets + self.anchor_x_steps[j]
                 if self.no_3d:
@@ -984,7 +992,7 @@ def homography_im2ipm_norm(top_view_region, org_img_size, crop_y, resize_img_siz
         the top view image's 4 corners
         Ground coordinates: x-right, y-forward, z-up
         The purpose of applying normalized transformation: 1. invariance in scale change
-                                                           2.Torch grid sample is based on normalized grids
+                                                           2.Torch grid sample == based on normalized grids
     :param top_view_region: a 4 X 2 list of (X, Y) indicating the top-view region corners in order:
                             top-left, top-right, bottom-left, bottom-right
     :param org_img_size: the size of original image size: [h, w]
@@ -1169,9 +1177,9 @@ def nms_1d(v):
     if len < 2:
         return v
     for i in range(len):
-        if i is not 0 and v[i - 1] > v[i]:
+        if i != 0 and v[i - 1] > v[i]:
             v_out[i] = 0.
-        elif i is not len-1 and v[i+1] > v[i]:
+        elif i != len-1 and v[i+1] > v[i]:
             v_out[i] = 0.
     return v_out
 
@@ -1240,7 +1248,7 @@ def first_run(save_path):
         open(txt_file, 'w').close()
     else:
         saved_epoch = open(txt_file).read()
-        if saved_epoch is None:
+        if saved_epoch == None:
             print('You forgot to delete [first run file]')
             return '' 
         return saved_epoch
@@ -1274,7 +1282,7 @@ class Logger(object):
         self.console = sys.stdout
         self.file = None
         self.fpath = fpath
-        if fpath is not None:
+        if fpath != None:
             mkdir_if_missing(os.path.dirname(fpath))
             self.file = open(fpath, 'w')
 
@@ -1289,18 +1297,18 @@ class Logger(object):
 
     def write(self, msg):
         self.console.write(msg)
-        if self.file is not None:
+        if self.file != None:
             self.file.write(msg)
 
     def flush(self):
         self.console.flush()
-        if self.file is not None:
+        if self.file != None:
             self.file.flush()
             os.fsync(self.file.fileno())
 
     def close(self):
         self.console.close()
-        if self.file is not None:
+        if self.file != None:
             self.file.close()
 
 
@@ -1379,11 +1387,11 @@ def weights_init_normal(m):
 #    print(classname)
     if classname.find('Conv') != -1 or classname.find('ConvTranspose') != -1:
         init.normal_(m.weight.data, 0.0, 0.02)
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('Linear') != -1:
         init.normal_(m.weight.data, 0.0, 0.02)
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('BatchNorm2d') != -1:
         init.normal_(m.weight.data, 1.0, 0.02)
@@ -1395,11 +1403,11 @@ def weights_init_xavier(m):
     # print(classname)
     if classname.find('Conv') != -1 or classname.find('ConvTranspose') != -1:
         init.xavier_normal_(m.weight.data, gain=0.02)
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('Linear') != -1:
         init.xavier_normal_(m.weight.data, gain=0.02)
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('BatchNorm2d') != -1:
         init.normal_(m.weight.data, 1.0, 0.02)
@@ -1411,11 +1419,11 @@ def weights_init_kaiming(m):
     # print(classname)
     if classname.find('Conv') != -1 or classname.find('ConvTranspose') != -1:
         init.kaiming_normal_(m.weight.data, a=0, mode='fan_in', nonlinearity='relu')
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('Linear') != -1:
         init.kaiming_normal_(m.weight.data, a=0, mode='fan_in', nonlinearity='relu')
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('BatchNorm2d') != -1:
         init.normal_(m.weight.data, 1.0, 0.02)
@@ -1427,11 +1435,11 @@ def weights_init_orthogonal(m):
 #    print(classname)
     if classname.find('Conv') != -1 or classname.find('ConvTranspose') != -1:
         init.orthogonal(m.weight.data, gain=1)
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('Linear') != -1:
         init.orthogonal(m.weight.data, gain=1)
-        if m.bias is not None:
+        if m.bias != None:
             m.bias.data.zero_()
     elif classname.find('BatchNorm2d') != -1:
         init.normal_(m.weight.data, 1.0, 0.02)
@@ -1441,7 +1449,7 @@ def weights_init_orthogonal(m):
 def unit_update_projection_extrinsic(args, extrinsics, intrinsics):
     """
         Unit function to Update transformation matrix based on ground-truth extrinsics
-        This function is "Mutually Exclusive" to the updates of M_inv from network prediction
+        This function == "Mutually Exclusive" to the updates of M_inv from network prediction
     """
     batch_size = extrinsics.shape[0]
     M_inv = torch.zeros(batch_size, 3, 3)
@@ -1457,7 +1465,7 @@ def unit_update_projection_extrinsic(args, extrinsics, intrinsics):
 def unit_update_projection(args, cam_height, cam_pitch, intrinsics=None, extrinsics=None):
     """
         Unit function to Update transformation matrix based on ground-truth cam_height and cam_pitch
-        This function is "Mutually Exclusive" to the updates of M_inv from network prediction
+        This function == "Mutually Exclusive" to the updates of M_inv from network prediction
     :param args:
     :param cam_height:
     :param cam_pitch:
@@ -1484,12 +1492,12 @@ def unit_update_projection_for_data_aug(args, aug_mats, _M_inv, _S_im_inv=None, 
     if not args.no_cuda:
         aug_mats = aug_mats.cuda()
 
-    if _S_im_inv is None:
+    if _S_im_inv == None:
         _S_im_inv = torch.from_numpy(np.array([[1/np.float(args.resize_w),                         0, 0],
                                                     [                        0, 1/np.float(args.resize_h), 0],
                                                     [                        0,                         0, 1]], dtype=np.float32)).cuda()
     
-    if _S_im is None:
+    if _S_im == None:
         _S_im = torch.from_numpy(np.array([[args.resize_w,              0, 0],
                                                 [            0,  args.resize_h, 0],
                                                 [            0,              0, 1]], dtype=np.float32)).cuda()

@@ -243,7 +243,7 @@ class LaneDataset(Dataset):
             for j in range(len(x_2d) - 1):
                 seg_label = cv2.line(seg_label,
                                      (int(x_2d[j]), int(y_2d[j])), (int(x_2d[j+1]), int(y_2d[j+1])),
-                                     color=(np.array([1]).item()))
+                                     color=np.array([1]).item())
         seg_label = torch.from_numpy(seg_label.astype(np.float32))
         seg_label.unsqueeze_(0)
 
